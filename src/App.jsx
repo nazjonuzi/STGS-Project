@@ -35,6 +35,33 @@ const DEFAULT_PAGE = {
   DeansOffice:     "review",
 };
 
+const REAL_DEMO_USERS = [
+  {
+    userID: "real-applicant",
+    name: "Real Applicant Demo",
+    email: "applicant@stgs.mk",
+    role: "Applicant",
+    active: true,
+    password: "demo1234",
+  },
+  {
+    userID: "real-council",
+    name: "Scientific Council Demo",
+    email: "council@stgs.mk",
+    role: "ScientificCouncil",
+    active: true,
+    password: "demo1234",
+  },
+  {
+    userID: "real-deans",
+    name: "Dean's Office Demo",
+    email: "deans@stgs.mk",
+    role: "DeansOffice",
+    active: true,
+    password: "demo1234",
+  },
+];
+
 // Page metadata
 const PAGE_META = {
   admin:    { title: "page.admin.title",        subtitle: "page.admin.subtitle" },
@@ -125,8 +152,12 @@ function LoginPage({ users, onLogin, language, setLanguage, t }) {
     role: "Applicant",
   });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const selectedRoleUsers = users.filter((user) => user.role === form.role && user.active);
+  const selectedRoleUsers = [
+    ...REAL_DEMO_USERS.filter((user) => user.role === form.role && user.active),
+    ...users.filter((user) => user.role === form.role && user.active),
+  ];
 
   function setField(field) {
     return (event) => {
@@ -135,16 +166,18 @@ function LoginPage({ users, onLogin, language, setLanguage, t }) {
     };
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
-    const result = onLogin(form);
+    setLoading(true);
+    const result = await onLogin(form);
+    setLoading(false);
     if (!result.success) setError(result.message);
   }
 
   function useDemo(user) {
     setForm({
       username: user.email,
-      password: "password",
+      password: user.password || "password",
       role: user.role,
     });
     setError("");
@@ -206,8 +239,16 @@ function LoginPage({ users, onLogin, language, setLanguage, t }) {
 
         {error && <div style={loginStyles.error}>{error}</div>}
 
-        <button type="submit" style={loginStyles.loginButton}>
-          {t("login.enter")}
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            ...loginStyles.loginButton,
+            opacity: loading ? 0.72 : 1,
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
+        >
+          {loading ? t("login.signingIn") : t("login.enter")}
         </button>
 
         <div style={loginStyles.demoBlock}>

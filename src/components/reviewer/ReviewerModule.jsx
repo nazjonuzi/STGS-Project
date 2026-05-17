@@ -329,7 +329,7 @@ function InfoBlock({ label, value, valueStyle = {} }) {
 }
 
 export function ReviewerQueue() {
-  const { state, dispatch, t } = useApp();
+  const { state, reviewApplication, t } = useApp();
   const { currentUser, applications, approvals, budget, documents, users } = state;
 
   const stage = STAGE_BY_ROLE[currentUser.role];
@@ -370,7 +370,7 @@ export function ReviewerQueue() {
     setFeedback(null);
   }
 
-  function handleDecision(decision) {
+  async function handleDecision(decision) {
     if (!selected) return;
 
     if (decision === "Approved" && budgetExceeded) {
@@ -384,16 +384,22 @@ export function ReviewerQueue() {
       return;
     }
 
-    dispatch({
-      type: "REVIEW_APPLICATION",
-      payload: {
-        applicationID: selected.applicationID,
-        reviewerID: currentUser.userID,
-        stage,
-        decision,
-        comment: comment.trim() || "No comment provided.",
-      },
+    const result = await reviewApplication({
+      applicationID: selected.applicationID,
+      reviewerID: currentUser.userID,
+      stage,
+      decision,
+      comment: comment.trim() || "No comment provided.",
     });
+
+    if (!result.success) {
+      setFeedback({
+        type: "error",
+        message: result.message || "The review decision could not be saved.",
+      });
+      setConfirming(null);
+      return;
+    }
 
     setFeedback({
       type: decision === "Approved" ? "success" : "error",

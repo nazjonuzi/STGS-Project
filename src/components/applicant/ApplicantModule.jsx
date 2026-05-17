@@ -221,11 +221,12 @@ function DocumentUpload({ files, onChange, error, t }) {
 }
 
 function ApplicationForm({ onSuccess }) {
-  const { state, dispatch, t } = useApp();
+  const { state, submitApplication, t } = useApp();
   const [form, setForm] = useState(EMPTY_FORM);
   const [documents, setDocuments] = useState([]);
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -233,7 +234,7 @@ function ApplicationForm({ onSuccess }) {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     const nextErrors = validate(form, documents);
     if (Object.keys(nextErrors).length) {
@@ -241,18 +242,22 @@ function ApplicationForm({ onSuccess }) {
       return;
     }
 
-    dispatch({
-      type: "SUBMIT_APPLICATION",
-      payload: {
-        userID: state.currentUser.userID,
-        applicantName: state.currentUser.name,
-        purpose: form.purpose.trim(),
-        destination: form.destination.trim(),
-        travelDates: { from: form.travelDateFrom, to: form.travelDateTo },
-        requestedAmount: Number(form.requestedAmount),
-        documents,
-      },
+    setSubmitting(true);
+    const result = await submitApplication({
+      userID: state.currentUser.userID,
+      applicantName: state.currentUser.name,
+      purpose: form.purpose.trim(),
+      destination: form.destination.trim(),
+      travelDates: { from: form.travelDateFrom, to: form.travelDateTo },
+      requestedAmount: Number(form.requestedAmount),
+      documents,
     });
+    setSubmitting(false);
+
+    if (!result.success) {
+      setErrors({ submit: result.message || "Application could not be submitted." });
+      return;
+    }
 
     setSubmitted(true);
     setTimeout(() => {
@@ -283,6 +288,8 @@ function ApplicationForm({ onSuccess }) {
             {t("applicant.formSubtitle")}
           </p>
         </div>
+
+        {errors.submit && <Alert type="error" message={errors.submit} />}
 
         <Field label={t("applicant.purpose")} error={errors.purpose} required>
           <textarea
@@ -346,16 +353,18 @@ function ApplicationForm({ onSuccess }) {
         </Field>
 
         <div style={styles.budgetHint}>
-          Available budget:{" "}
+          {t("applicant.availableBudget")}:{" "}
           <strong style={{ color: state.budget.availableFunds > 0 ? "#10B981" : "#EF4444" }}>
             {state.budget.availableFunds.toLocaleString()}
           </strong>{" "}
-          of {state.budget.totalFunds.toLocaleString()} total.
+          {interpolate(t("applicant.ofTotal"), {
+            total: state.budget.totalFunds.toLocaleString(),
+          })}
         </div>
 
         <div style={styles.formActions}>
-          <Button type="submit" variant="primary" size="lg">
-            {t("applicant.submit")}
+          <Button type="submit" variant="primary" size="lg" disabled={submitting}>
+            {submitting ? t("applicant.submitting") : t("applicant.submit")}
           </Button>
         </div>
       </form>
@@ -592,7 +601,7 @@ function DetailRow({ label, value }) {
 }
 
 export function ApplicantDashboard() {
-  const { state, dispatch, t } = useApp();
+  const { state, cancelApplication, t } = useApp();
   const [filter, setFilter] = useState("All");
   const [success, setSuccess] = useState("");
 
@@ -610,12 +619,13 @@ export function ApplicantDashboard() {
       .reduce((sum, app) => sum + app.requestedAmount, 0),
   };
 
-  function handleCancel(application) {
-    dispatch({
-      type: "CANCEL_APPLICATION",
-      payload: { applicationID: application.applicationID, canceledBy: "Applicant" },
-    });
-    setSuccess(`Application ${application.applicationID} canceled.`);
+  async function handleCancel(application) {
+    const result = await cancelApplication(application.applicationID, "Applicant");
+    setSuccess(
+      result.success
+        ? `Application ${application.applicationID} canceled.`
+        : result.message || "Application could not be canceled."
+    );
     setTimeout(() => setSuccess(""), 4000);
   }
 
